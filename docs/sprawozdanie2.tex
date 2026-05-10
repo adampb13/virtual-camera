@@ -1,0 +1,96 @@
+% Sprawozdanie do projektu: Eliminacja elementów zasłoniętych - BSP Tree
+% Kompilacja (przykład): pdflatex sprawozdanie2.tex
+
+\documentclass[12pt,a4paper]{article}
+
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage[polish]{babel}
+\usepackage{lmodern}
+\usepackage{geometry}
+\usepackage{amsmath}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{hyperref}
+\usepackage{float}
+
+\geometry{margin=2.5cm}
+\hypersetup{colorlinks=true, linkcolor=black, urlcolor=black, citecolor=black}
+
+\title{Sprawozdanie: Eliminacja elementów zasłoniętych (BSP Tree)}
+\author{Adam Boros \\ Kacper Warpechowski}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\section{Cel i zakres zadania}
+Celem projektu jest implementacja algorytmu \textbf{BSP Tree (Binary Space Partitioning)} do poprawnego rysowania zbioru trójkątów w przestrzeni 3D z uwzględnieniem wzajemnego zasłaniania. Scena jest pozbawiona systemowego, kosztownego Z-bufora. Obiekty są wypełnione jednolitym kolorem (solid rendering), a ich poszczególne definicje wczytywane są z zewnętrznego pliku tekstowego.
+
+\section{Środowisko uruchomieniowe}
+Projekt został napisany w języku \textbf{Python} przy wykorzystaniu powłoki \texttt{pygame-ce} do rysowania geometrii 2D oraz \texttt{numpy} do przyspieszenia operacji na macierzach. Aplikacja bazuje rdzennie na wirtualnej kamerze stworzonej w pierwszej części projektu, adaptując całe jej przestrzenne rzutowanie i sterowanie na wyższy model cieniowań. Do wczytywania sceny używany jest plik \texttt{scene.txt}.
+
+\section{Realizacja graficzna (opis algorytmiczny)}
+Program funkcjonuje opierając wymiary przestrzeni o informacje z pliku tekstowego, w którym każdy wiersz definiuje jeden trójkąt w formacie:
+\begin{quote}
+\texttt{x1 y1 z1 \ x2 y2 z2 \ x3 y3 z3 \ R G B}
+\end{quote}
+Na bazie otrzymanych wielokątów budowane jest \textbf{drzewo BSP}. Pierwszy wczytany trójkąt stanowi płaszczyznę odniesienia podziału. Pozostałe ładowane struktury w klasyfikacji mogą zostać umiejscowione przed ową płaszczyzną, ukryte za nią lub, w bardzo niefortunnych kolizjach, podzielone geometrycznie na mniejsze części. W trakcie odświeżania algorytm przechodzi całe to drzewo posiłkując się aktualną pozycją obserwatora, wypuszczając listę poćwiartowanych figur prosto do narysowania w sekwencji od obiektu najdalszego od kamery do najbliższego obiektywowi (tzw. Algorytm Malarza). Przez to obiekty ułożone faktycznie na przodzie nakrywają barwnymi pikselami struktury, które narysowane zostały chwilę wcześniej gdzieś z tyłu w tle.
+
+\section{Geometria sceny testowej}
+Dla zbadania fizyki nakładania się pikseli, wykreowano sztuczny układ czterech osobnych rzutnych trójkątów (czerwony, zielony, niebieski i ukośny żółty "daszek"), ulokowanych szeregowo jeden za drugim.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.8\textwidth]{screens/widokpoincicjacji.png}
+    \caption{Scena 3D widziana frontalnie, tuż po uruchomieniu aplikacji.}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.8\textwidth]{screens/widokzgory.png}
+    \caption{Układ wygenerowanych trójkątów na siatce współrzędnych - rzut na ułożenie obiektów w głębi sceny.}
+\end{figure}
+Zrzuty zamieszczone powyżej (Rysunek 1 oraz Rysunek 2) pełnią formę informacyjną wobec struktury mapy, pokazując tylko konstrukcję oraz ułożenie fizyczne użytych przedmiotów w bezpiecznej odległości i kolejności od Z. Pozwoli to z łatwością ocenić niżej umiejscowione zadania testowe.
+
+\section{Testy działania}
+Kluczowymi dowodami dla eliminacji zasłoniętej powłoką graficznej okluzji, były obroty kamerowe łamiące utarty system naturalnych położeń kamery do przodu na korzyść wpadania obiektów na siebie podczas perspektyw bocznych.
+
+\subsection{Test 1: Przysłonięcia przy rotacji kamery w lewo}
+\textbf{Czynność:} Przesunięcie i agresywny obrót obiektywu strzałkami na scenę pod lewym kątem.
+\\
+\textbf{Oczekiwany efekt:} Skrajnie najbardziej niebieski trójkąt w osi całej sceny po odwróceniu kamery pod nowym wklęśnięciem kątowym staje się wielokątem z przodu i poprawnie przysłania wycinek z obiektu uprzednio widywanego na przodzie.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.8\textwidth]{screens/niebieskizaslaniazielonywpelni.png}
+    \caption{Niebieski trójkąt prawidłowo przysłania widok z tyłu, blokując render elementu zielonego w osi wizualnej kamery.}
+\end{figure}
+
+\subsection{Test 2: Przysłonięcia przy rotacji kamery w prawo}
+\textbf{Czynność:} Odwrócenie rzutu i przelot ogniskową prosto w prawy bok geometryczny.
+\\
+\textbf{Oczekiwany efekt:} Natychmiastowe przetasowanie na odległości w pod-drzewach malarza odcinające dominującą do tej pory moc obiektu czerwonego, na korzyść zielonego trójkąta od którego teraz odbijają się pierwsze siatki wizji.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.8\textwidth]{screens/zielonyzaslaniaczerwonywpelni.png}
+    \caption{Zamierzone zakrycie centralnego czerwonego przedmiotu odświeżającą zmianą perspektywy z prawej.}
+\end{figure}
+
+\subsection{Test 3: Okluzja elementu ukośnego (pochyłego)}
+\textbf{Czynność:} Odejście do góry ponad konstrukcje na widok żółtego wzdłużnego elementu.
+\\
+\textbf{Oczekiwany efekt:} Pokrywający pozostałe wierzchołki trójkąt rygorystycznie ucina środek widocznemu czerwonemu wycinkowi poniżej przy czym algorytmy drzew nie rysują fałszywych wpięć trójkąta pod obrzary żółtego.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.8\textwidth]{screens/zoltyprzyslaniafragmentyzielonegoiczerwonego.png}
+    \caption{Prawidłowe odcinanie rzutu brył pod pochyłym, skrajnym obiektem.}
+\end{figure}
+
+\section{Wnioski końcowe}
+Drzewo binarne BSP bardzo dobrze uporało się z postawionym zadaniem. Należyte zaimplementowanie przechodzenia algorytmu umożliwiło sortowanie wielowierzchołkowych map generując rzut całkowicie bez wyliczania fizycznych obciążeń pamięci per Z, co udowadnia siłę okluzji opartej na węzłowej przestrzeni odcinającej defekty graficzne (artefakty widoczności krawędzi obiektów w oddali).
+
+\end{document}

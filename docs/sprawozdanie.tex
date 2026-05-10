@@ -1,0 +1,201 @@
+% Sprawozdanie do projektu: Wirtualna kamera 3D (wireframe)
+% Kompilacja (przykład): pdflatex sprawozdanie.tex
+
+\documentclass[12pt,a4paper]{article}
+
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage[polish]{babel}
+\usepackage{lmodern}
+\usepackage{geometry}
+\usepackage{amsmath}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{hyperref}
+
+\geometry{margin=2.5cm}
+\hypersetup{colorlinks=true, linkcolor=black, urlcolor=black, citecolor=black}
+
+\title{Sprawozdanie: Wirtualna kamera 3D (wireframe)}
+\author{Adam Boros}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\section{Cel i zakres}
+Celem projektu jest implementacja \textbf{wirtualnej kamery 3D}, która umożliwia swobodne poruszanie się w przestrzeni oraz obrót obserwatora.
+Scena jest renderowana w trybie \textbf{krawędziowym (wireframe)}: rysowane są tylko odcinki będące krawędziami wielościanów.
+Nie ma oświetlenia ani usuwania powierzchni zasłoniętych (brak Z-bufora / sortowania ścian), zgodnie z założeniami konspektu.
+
+\section{Środowisko uruchomieniowe}
+Projekt został napisany w języku \textbf{Python} i uruchomiony na systemie \textbf{Windows} (Python \textbf{3.12.7}).
+Program jest aplikacją okienkową działającą w czasie rzeczywistym (odświeżanie ok. 60 FPS).
+
+\subsection{Uruchomienie}
+W katalogu projektu program uruchamia się poleceniem:
+\begin{quote}
+\texttt{python code/main.py}
+\end{quote}
+
+\section{Realizacja graficzna (opis algorytmiczny)}
+\subsection{Obiekty i geometria sceny}
+Scena jest zbudowana z prostych obiektów, aby łatwo ocenić perspektywę i działanie kamery:
+\begin{itemize}
+    \item \textbf{4 prostopadłościany} (budynki) modelowane przez 8 wierzchołków oraz 12 krawędzi,
+    \item \textbf{2 linie} symbolizujące krawędzie drogi (pomocnicze linie orientacyjne w głąb sceny).
+\end{itemize}
+
+Każdy prostopadłościan jest opisany jako:
+\begin{itemize}
+    \item wierzchołki w układzie świata $(x,y,z)$, gdzie $y=0$ jest „podłożem”, a $y>0$ to wysokość,
+    \item lista par indeksów $(i,j)$ wskazująca, które wierzchołki połączyć odcinkiem (krawędzie bryły).
+\end{itemize}
+
+W projekcie rozmieszczenie budynków (środki w osiach $x$ i $z$, wymiary $w\times d\times h$) jest następujące:
+\begin{center}
+\begin{tabular}{@{}rrrrrr@{}}
+\toprule
+$\# $ & $x$ & $z$ & $w$ & $d$ & $h$ \\
+\midrule
+1 & -12.0 & 24.0 & 8.0 & 8.0 & 7.0 \\
+2 &  12.0 & 30.0 & 10.0 & 9.0 & 12.0 \\
+3 & -10.0 & 48.0 & 9.0 & 8.0 & 16.0 \\
+4 &  13.0 & 56.0 & 11.0 & 10.0 & 10.0 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Droga jest zdefiniowana jako dwie linie równoległe do osi $z$, w punktach $x=-4$ i $x=4$ (od $z=4$ do $z=120$).
+
+\subsection{Układy współrzędnych i potok renderingu}
+Renderowanie odbywa się klasycznym potokiem dla grafiki 3D (w wersji minimalnej):
+\begin{enumerate}
+    \item \textbf{Świat $\rightarrow$ kamera (macierz widoku)}: wszystkie wierzchołki sceny są przekształcane do układu współrzędnych kamery.
+    \item \textbf{Rzut perspektywiczny (kamera $\rightarrow$ ekran)}: punkty 3D w układzie kamery są rzutowane na 2D.
+    \item \textbf{Rysowanie odcinków}: dla każdej krawędzi $(i,j)$ rysowana jest linia 2D pomiędzy rzutami wierzchołków $i$ oraz $j$.
+\end{enumerate}
+
+W praktyce oznacza to, że „modelowanie” obiektów jest statyczne (współrzędne świata), a cała dynamika pochodzi ze zmiany parametrów kamery.
+
+\subsection{Macierz widoku (kamera jako transformacja odwrotna)}
+Kamera jest opisana przez:
+\begin{itemize}
+    \item pozycję $\mathbf{c}=(c_x,c_y,c_z)$,
+    \item trzy kąty Eulera: $\text{pitch}$ (oś $x$), $\text{yaw}$ (oś $y$), $\text{roll}$ (oś $z$).
+\end{itemize}
+
+Aby przejść z układu świata do układu kamery, stosowana jest \textbf{macierz widoku} $V$ będąca odwrotnością transformacji kamery w świecie.
+W implementacji zrobione jest to przez:
+\begin{itemize}
+    \item translację o wektor $-\mathbf{c}$ (przesunięcie świata „pod kamerę”),
+    \item rotację o kąty przeciwne do orientacji kamery.
+\end{itemize}
+
+W zapisie macierzowym (4x4, współrzędne jednorodne):
+\[
+V = R_z(-\mathrm{roll})\,R_x(-\mathrm{pitch})\,R_y(-\mathrm{yaw})\,T(-c_x,-c_y,-c_z)
+\]
+
+Każdy wierzchołek $\mathbf{p}$ jest rozszerzany do $(x,y,z,1)$ i mnożony przez $V$, aby uzyskać współrzędne w przestrzeni kamery.
+
+\subsection{Rzutowanie perspektywiczne i ogniskowa z FOV}
+Po przekształceniu do układu kamery punkt $\mathbf{p}_c=(x,y,z)$ jest rzutowany na ekran według perspektywy:
+\[
+ x_{2D} = \frac{f\,x}{z} + \frac{W}{2},\quad
+ y_{2D} = -\frac{f\,y}{z} + \frac{H}{2}
+\]
+
+Minus przy $y$ wynika z tego, że współrzędna $y$ w oknie rośnie w dół, a w scenie $y$ jest traktowane jako „do góry”.
+
+Ogniskowa $f$ jest wyliczana z pola widzenia (FOV) w poziomie:
+\[
+ f = \frac{W/2}{\tan(\mathrm{FOV}/2)}
+\]
+co pozwala realizować \textbf{zoom} przez zmianę FOV (a nie przez zmianę pozycji kamery).
+
+\subsection{Odcinanie przez płaszczyznę bliską (near plane)}
+W celu uniknięcia dzielenia przez bardzo małe $z$ i artefaktów, zastosowano prosty warunek:
+\[
+ z > z_{\text{near}}
+\]
+Jeśli punkt jest bliżej niż $z_{\text{near}}=0{.}1$ (lub znajduje się „za kamerą”), to nie jest rzutowany, a krawędzie z takim wierzchołkiem nie są rysowane.
+To jest celowe uproszczenie (bez przycinania odcinków do płaszczyzny).
+
+\section{Instrukcja obsługi (sterowanie)}
+Sterowanie jest realizowane w czasie rzeczywistym przez stałe przeliczanie widoku po zmianie parametrów kamery.
+Poniższa tabela opisuje mapowanie klawiszy:
+
+\begin{center}
+\begin{tabularx}{\linewidth}{@{}lX@{}}
+\toprule
+\textbf{Klawisz} & \textbf{Działanie (sens graficzny)} \\
+\midrule
+W / S & przesuwanie kamery w przód / w tył wzdłuż wektora \textit{forward} \\
+A / D & przesuwanie kamery w lewo / w prawo wzdłuż wektora \textit{right} \\
+R / F & przesuwanie kamery w górę / w dół wzdłuż wektora \textit{up} \\
+\midrule
+$\uparrow$ / $\downarrow$ & obrót kamery (pitch) w górę / w dół \\
+$\leftarrow$ / $\rightarrow$ & obrót kamery (yaw) w lewo / w prawo \\
+Q / E & obrót kamery (roll) przeciwnie do ruchu wskazówek / zgodnie z ruchem wskazówek \\
+\midrule
+Z / X & zoom przez zmianę FOV: mniejszy FOV (przybliżenie) / większy FOV (oddalenie) \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+Dodatkowo:
+\begin{itemize}
+    \item $\text{pitch}$ jest ograniczony do zakresu $[-89^\circ, 89^\circ]$, aby uniknąć osobliwości orientacji przy patrzeniu dokładnie w górę/dół,
+    \item FOV jest ograniczony do $[30^\circ, 120^\circ]$, żeby uniknąć skrajnych zniekształceń.
+\end{itemize}
+
+\section{Testy działania (konkretne obserwacje)}
+Poniżej opisano testy wykonane na gotowym programie oraz obserwowane efekty wizualne:
+
+\subsection{Test 1: ruch postępowy względem kierunku patrzenia}
+\textbf{Czynność:} przytrzymanie \textbf{W} (ruch do przodu), następnie \textbf{S}.
+
+\textbf{Oczekiwany efekt:} budynki oraz linie drogi zwiększają / zmniejszają swój rozmiar na ekranie zgodnie z perspektywą.
+Przy zbliżaniu się do obiektów rośnie „rozbieżność” linii (efekt perspektywiczny), bo w równaniu projekcji występuje dzielenie przez $z$.
+
+\subsection{Test 2: yaw (obrót w poziomie) i zależność od sceny}
+\textbf{Czynność:} obrót w lewo/prawo strzałkami $\leftarrow$ / $\rightarrow$.
+
+\textbf{Oczekiwany efekt:} budynki przesuwają się po ekranie w przeciwną stronę do obrotu kamery.
+Droga (dwie linie w osi $z$) daje wyraźny punkt zbiegu, który przesuwa się zgodnie z yaw.
+
+\subsection{Test 3: pitch (obrót góra/dół) i stabilność}
+\textbf{Czynność:} obrót $\uparrow$ / $\downarrow$ aż do skrajnych wartości.
+
+\textbf{Oczekiwany efekt:} obserwacja „podłoża” ($y=0$) i górnych krawędzi budynków zmienia się zgodnie z kątem patrzenia.
+Ograniczenie pitch do $\pm 89^\circ$ zapobiega nagłemu „przeskokowi” orientacji.
+
+\subsection{Test 4: roll (obrót wokół osi patrzenia)}
+\textbf{Czynność:} przytrzymanie \textbf{Q} lub \textbf{E}.
+
+\textbf{Oczekiwany efekt:} obraz obraca się jak przy przechyleniu kamery (horyzont i piony budynków nachylają się), ale perspektywa (dzielenie przez $z$) pozostaje taka sama.
+
+\subsection{Test 5: zoom przez FOV (Z/X)}
+\textbf{Czynność:} zmniejszanie FOV klawiszem \textbf{Z} i zwiększanie FOV klawiszem \textbf{X}.
+
+\textbf{Oczekiwany efekt:}
+\begin{itemize}
+    \item mniejszy FOV: „przybliżenie” (większa ogniskowa $f$) — obiekty rosną na ekranie,
+    \item większy FOV: „oddalenie” (mniejsza ogniskowa $f$) — obiekty maleją, a krawędzie bardziej się rozbiegają (silniejsza deformacja szerokokątna).
+\end{itemize}
+
+\subsection{Test 6: zachowanie dla obiektów za/za blisko kamery}
+\textbf{Czynność:} zbliżenie się do obiektu tak, aby część wierzchołków znalazła się przed płaszczyzną bliską lub „za kamerą”.
+
+\textbf{Oczekiwany efekt:} krawędzie, których wierzchołki nie spełniają warunku $z>z_{\text{near}}$, nie są rysowane.
+Może to powodować nagłe znikanie fragmentów obiektu (brak przycinania odcinków do near plane), co jest zgodne z przyjętym uproszczeniem.
+
+\section{Wnioski i ograniczenia (tylko grafika)}
+\begin{itemize}
+    \item Zastosowany algorytm renderingu to minimalny \textbf{wireframe} z perspektywą: transformacja wierzchołków do przestrzeni kamery + projekcja + rysowanie krawędzi.
+    \item Brak usuwania niewidocznych krawędzi powoduje, że obiekt jest zawsze „przezroczysty” (widoczne są krawędzie z tyłu bryły).
+    \item Zastosowana płaszczyzna bliska stabilizuje projekcję, ale bez przycinania odcinków może generować skokowe zaniki krawędzi przy przechodzeniu przez $z_{\text{near}}$.
+\end{itemize}
+
+\end{document}

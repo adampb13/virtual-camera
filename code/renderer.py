@@ -1,10 +1,10 @@
 import pygame
 import numpy as np
 
-from math3d import project_point
+from math3d import project_point, transform_points
+from bsp import Triangle
 
-
-class WireframeRenderer:
+class SolidRenderer:
     def __init__(self, width: int, height: int, near_plane: float = 0.1):
         self.width = width
         self.height = height
@@ -13,26 +13,27 @@ class WireframeRenderer:
     def draw(
         self,
         surface: pygame.Surface,
-        camera_space_vertices: np.ndarray,
-        edges: list[tuple[int, int]],
+        triangles: list[Triangle],
+        view_matrix: np.ndarray,
         focal_length: float,
-        color: tuple[int, int, int],
     ) -> None:
-        projected: dict[int, tuple[int, int]] = {}
-
-        for i, p in enumerate(camera_space_vertices):
-            if p[2] <= self.near_plane:
+        
+        for tri in triangles:
+            # Transform vertices to camera space
+            # We stack vertices into (3, 3) matrix
+            verts = np.vstack(tri.vertices)
+            cam_verts = transform_points(view_matrix, verts)
+            
+            # Simple near plane culling: if any vertex is behind near plane, don't draw
+            # A full clipping against the near plane could be written, but for now we cull.
+            if any(v[2] <= self.near_plane for v in cam_verts):
                 continue
-            projected[i] = project_point(p, focal_length, self.width, self.height)
+                
+            projected = [
+                project_point(p, focal_length, self.width, self.height)
+                for p in cam_verts
+            ]
 
-        for i0, i1 in edges:
-            p0 = camera_space_vertices[i0]
-            p1 = camera_space_vertices[i1]
+            pygame.draw.polygon(surface, tri.color, projected)
 
-            if p0[2] <= self.near_plane or p1[2] <= self.near_plane:
-                continue
 
-            if i0 not in projected or i1 not in projected:
-                continue
-
-            pygame.draw.line(surface, color, projected[i0], projected[i1], 1)
