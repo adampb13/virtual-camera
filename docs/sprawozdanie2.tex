@@ -26,20 +26,20 @@
 \maketitle
 
 \section{Cel i zakres zadania}
-Celem projektu jest implementacja algorytmu \textbf{BSP Tree (Binary Space Partitioning)} do poprawnego rysowania zbioru trójkątów w przestrzeni 3D z uwzględnieniem wzajemnego zasłaniania. Scena jest pozbawiona systemowego, kosztownego Z-bufora. Obiekty są wypełnione jednolitym kolorem (solid rendering), a ich poszczególne definicje wczytywane są z zewnętrznego pliku tekstowego.
+Celem projektu jest stworzenie prostego programu, który używa drzewa BSP do poprawnego rysowania trójkątów w 3D, tak żeby obiekty bliższe zasłaniały te dalsze. Nie korzystamy z Z-bufora — sceny rysowane są w jednolitych kolorach, a dane obiektów wczytywane są z pliku tekstowego.
 
 \section{Środowisko uruchomieniowe}
-Projekt został napisany w języku \textbf{Python} przy wykorzystaniu powłoki \texttt{pygame-ce} do rysowania geometrii 2D oraz \texttt{numpy} do przyspieszenia operacji na macierzach. Aplikacja bazuje rdzennie na wirtualnej kamerze stworzonej w pierwszej części projektu, adaptując całe jej przestrzenne rzutowanie i sterowanie na wyższy model cieniowań. Do wczytywania sceny używany jest plik \texttt{scene.txt}.
+Program został napisany w \textbf{Pythonie}. Do rysowania używamy \texttt{pygame-ce}, a do obliczeń macierzowych \texttt{numpy}. Korzystamy z wcześniej napisanej wirtualnej kamery (rzutowanie i sterowanie). Scena jest wczytywana z pliku \texttt{scene.txt}.
 
 \section{Realizacja graficzna (opis algorytmiczny)}
-Program funkcjonuje opierając wymiary przestrzeni o informacje z pliku tekstowego, w którym każdy wiersz definiuje jeden trójkąt w formacie:
+Program czyta plik, w którym każdy wiersz opisuje jeden trójkąt w formacie:
 \begin{quote}
 \texttt{x1 y1 z1 \ x2 y2 z2 \ x3 y3 z3 \ R G B}
 \end{quote}
-Na bazie otrzymanych wielokątów budowane jest \textbf{drzewo BSP}. Pierwszy wczytany trójkąt stanowi płaszczyznę odniesienia podziału. Pozostałe ładowane struktury w klasyfikacji mogą zostać umiejscowione przed ową płaszczyzną, ukryte za nią lub, w bardzo niefortunnych kolizjach, podzielone geometrycznie na mniejsze części. W trakcie odświeżania algorytm przechodzi całe to drzewo posiłkując się aktualną pozycją obserwatora, wypuszczając listę poćwiartowanych figur prosto do narysowania w sekwencji od obiektu najdalszego od kamery do najbliższego obiektywowi (tzw. Algorytm Malarza). Przez to obiekty ułożone faktycznie na przodzie nakrywają barwnymi pikselami struktury, które narysowane zostały chwilę wcześniej gdzieś z tyłu w tle.
+Na podstawie tych trójkątów budujemy drzewo BSP. Pierwszy trójkąt służy jako płaszczyzna podziału; pozostałe elementy klasyfikujemy jako przed, za lub (jeśli trzeba) dzielimy na części. Przy rysowaniu przechodzimy drzewo według pozycji kamery i wypisujemy trójkąty od najdalszych do najbliższych (algorytm malarza). Dzięki temu bliższe elementy zasłaniają dalsze.
 
 \section{Geometria sceny testowej}
-Dla zbadania fizyki nakładania się pikseli, wykreowano sztuczny układ czterech osobnych rzutnych trójkątów (czerwony, zielony, niebieski i ukośny żółty "daszek"), ulokowanych szeregowo jeden za drugim.
+Dla testów przygotowaliśmy prostą scenę z czterema trójkątami w różnych kolorach (czerwony, zielony, niebieski i żółty „daszek”) ustawionymi jeden za drugim. To ułatwia sprawdzenie, czy zasłanianie działa poprawnie.
 
 \begin{figure}[H]
     \centering
@@ -55,12 +55,12 @@ Dla zbadania fizyki nakładania się pikseli, wykreowano sztuczny układ czterec
 Zrzuty zamieszczone powyżej (Rysunek 1 oraz Rysunek 2) pełnią formę informacyjną wobec struktury mapy, pokazując tylko konstrukcję oraz ułożenie fizyczne użytych przedmiotów w bezpiecznej odległości i kolejności od Z. Pozwoli to z łatwością ocenić niżej umiejscowione zadania testowe.
 
 \section{Testy działania}
-Kluczowymi dowodami dla eliminacji zasłoniętej powłoką graficznej okluzji, były obroty kamerowe łamiące utarty system naturalnych położeń kamery do przodu na korzyść wpadania obiektów na siebie podczas perspektyw bocznych.
+Sprawdzaliśmy zachowanie programu głównie przez obracanie i przesuwanie kamery, obserwując, czy obiekty poprawnie zasłaniają się nawzajem.
 
 \subsection{Test 1: Przysłonięcia przy rotacji kamery w lewo}
-\textbf{Czynność:} Przesunięcie i agresywny obrót obiektywu strzałkami na scenę pod lewym kątem.
+\textbf{Czynność:} Obrót kamery w lewo.
 \\
-\textbf{Oczekiwany efekt:} Skrajnie najbardziej niebieski trójkąt w osi całej sceny po odwróceniu kamery pod nowym wklęśnięciem kątowym staje się wielokątem z przodu i poprawnie przysłania wycinek z obiektu uprzednio widywanego na przodzie.
+\textbf{Oczekiwany efekt:} Niebieski trójkąt, który był dalej, pojawia się z przodu i zasłania elementy, które wcześniej były widoczne.
 
 \begin{figure}[H]
     \centering
@@ -69,9 +69,9 @@ Kluczowymi dowodami dla eliminacji zasłoniętej powłoką graficznej okluzji, b
 \end{figure}
 
 \subsection{Test 2: Przysłonięcia przy rotacji kamery w prawo}
-\textbf{Czynność:} Odwrócenie rzutu i przelot ogniskową prosto w prawy bok geometryczny.
+\textbf{Czynność:} Obrót kamery w prawo.
 \\
-\textbf{Oczekiwany efekt:} Natychmiastowe przetasowanie na odległości w pod-drzewach malarza odcinające dominującą do tej pory moc obiektu czerwonego, na korzyść zielonego trójkąta od którego teraz odbijają się pierwsze siatki wizji.
+\textbf{Oczekiwany efekt:} Widok się zmienia tak, że teraz zielony trójkąt może zasłaniać czerwony, zgodnie z nową perspektywą.
 
 \begin{figure}[H]
     \centering
@@ -80,9 +80,9 @@ Kluczowymi dowodami dla eliminacji zasłoniętej powłoką graficznej okluzji, b
 \end{figure}
 
 \subsection{Test 3: Okluzja elementu ukośnego (pochyłego)}
-\textbf{Czynność:} Odejście do góry ponad konstrukcje na widok żółtego wzdłużnego elementu.
+\textbf{Czynność:} Przesunięcie kamery w górę, by spojrzeć na żółty, pochyły trójkąt.
 \\
-\textbf{Oczekiwany efekt:} Pokrywający pozostałe wierzchołki trójkąt rygorystycznie ucina środek widocznemu czerwonemu wycinkowi poniżej przy czym algorytmy drzew nie rysują fałszywych wpięć trójkąta pod obrzary żółtego.
+\textbf{Oczekiwany efekt:} Żółty trójkąt zasłania fragmenty trójkątów pod nim, bez powstawania błędnych „wcięć” czy artefaktów.
 
 \begin{figure}[H]
     \centering
@@ -91,6 +91,6 @@ Kluczowymi dowodami dla eliminacji zasłoniętej powłoką graficznej okluzji, b
 \end{figure}
 
 \section{Wnioski końcowe}
-Drzewo binarne BSP bardzo dobrze uporało się z postawionym zadaniem. Należyte zaimplementowanie przechodzenia algorytmu umożliwiło sortowanie wielowierzchołkowych map generując rzut całkowicie bez wyliczania fizycznych obciążeń pamięci per Z, co udowadnia siłę okluzji opartej na węzłowej przestrzeni odcinającej defekty graficzne (artefakty widoczności krawędzi obiektów w oddali).
+Drzewo BSP dobrze poradziło sobie z postawionym zadaniem. Dzięki niemu program potrafi posortować trójkąty od najdalszych do najbliższych, więc obiekty położone bliżej poprawnie zasłaniają te dalej. Rozwiązanie zadziałało efektywnie na naszej prostej scenie testowej i pozwoliło uniknąć używania kosztownego bufora Z. To prosty i szybki sposób na usuwanie zasłoniętych elementów, choć w bardzo złożonych scenach mogą być potrzebne dodatkowe poprawki.
 
 \end{document}
